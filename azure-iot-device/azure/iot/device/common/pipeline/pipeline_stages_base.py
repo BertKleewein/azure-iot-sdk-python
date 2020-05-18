@@ -870,7 +870,7 @@ class ReconnectStage(PipelineStage):
                     )
                 )
                 self.state = ReconnectState.WAITING_TO_RECONNECT
-                self._start_reconnect_timer()
+                self._start_reconnect_timer(0.1)
             else:
                 logger.info(
                     "{}({}): State is {}.  Doing nothing".format(self.name, event.name, self.state)
@@ -904,7 +904,7 @@ class ReconnectStage(PipelineStage):
                             )
                         )
                         self.state = ReconnectState.WAITING_TO_RECONNECT
-                        self._start_reconnect_timer()
+                        self._start_reconnect_timer(10)
 
                     elif this.state == ReconnectState.WAITING_TO_RECONNECT:
                         logger.info(
@@ -938,7 +938,7 @@ class ReconnectStage(PipelineStage):
         self.send_op_down(op)
 
     @pipeline_thread.runs_on_pipeline_thread
-    def _start_reconnect_timer(self):
+    def _start_reconnect_timer(self, delay):
         """
         Set a timer to reconnect after some period of time
         """
@@ -967,7 +967,7 @@ class ReconnectStage(PipelineStage):
                     )
                 )
 
-        self.reconnect_timer = threading.Timer(self.reconnect_delay, on_reconnect_timer_expired)
+        self.reconnect_timer = threading.Timer(delay, on_reconnect_timer_expired)
         self.reconnect_timer.start()
 
     @pipeline_thread.runs_on_pipeline_thread

@@ -441,8 +441,11 @@ class MQTTTransport(object):
         """
         logger.info("reauthorizing MQTT client")
         self._mqtt_client.username_pw_set(username=self._username, password=password)
+        return self.disconnect()
+        """
+        self._mqtt_client.username_pw_set(username=self._username, password=password)
         try:
-            rc = self._mqtt_client.reconnect()
+            # rc = self._mqtt_client._send_connect(self._mqtt_client._keepalive)
         except Exception as e:
             logger.info("reconnect raised {}".format(e))
             self._cleanup_transport_on_error()
@@ -454,6 +457,7 @@ class MQTTTransport(object):
             # This could result in ConnectionFailedError, ConnectionDroppedError, UnauthorizedError
             # or ProtocolClientError
             raise _create_error_from_rc_code(rc)
+        """
 
     def disconnect(self):
         """
