@@ -809,8 +809,29 @@ class ReconnectState(object):
     CONNECTED_OR_DISCONNECTED = "CONNECTED_OR_DISCONNECTED"
 
 
+active = []
+
+
+def prune_active():
+    global active
+    old_active = active
+    active = []
+    logger.error("pruning active list")
+    for obj in old_active:
+        if obj():
+            logger.error("{} still active".format(obj))
+            active.append(obj)
+        else:
+            logger.error("{} dead".format(obj))
+    logger.error("{} active stages after prune".format(len(active)))
+    for obj in active:
+        logger.error("{}: {}".format(obj(), obj().state))
+
+
 class ReconnectStage(PipelineStage):
     def __init__(self):
+        global active
+        active.append(weakref.ref(self))
         super(ReconnectStage, self).__init__()
         self.reconnect_timer = None
         self.state = ReconnectState.NEVER_CONNECTED
@@ -890,13 +911,37 @@ class ReconnectStage(PipelineStage):
             this = self_weakref()
             if this:
                 if error:
-                    if this.state == ReconnectState.NEVER_CONNECTED:
-                        logger.info(
-                            "{}({}): error on first connection.  Not triggering reconnection".format(
-                                this.name, op.name
+                    logger.error("START ERROR_LOG")
+                    prune_active()
+                    temp_error = False
+
+                    logger.error("CONNECT ERROR, self={}".format(self))
+                    logger.error("state = {}".format(self.state))
+                    logger.error("error: '{}'".format(error))
+                    if error.__cause__:
+                        logger.error("__cause__: '{}'".format(error.__cause__))
+                        logger.error("type(__cause__) = {}".format(type(error.__cause__)))
+                        if error.__cause__.__dict__:
+                            logger.error(
+                                "__cause__.__dict__: '{}'".format(error.__cause__.__dict__)
                             )
-                        )
-                        this._complete_waiting_connect_ops(error)
+                    if "Temporary failure in name resolution" in str(error):
+                        logger.error("name resolution error")
+                        temp_error = True
+                    logger.error("END ERROR_LOG")
+
+                    if this.state == ReconnectState.NEVER_CONNECTED:
+                        if temp_error:
+                            logger.error("DNS on never connected")
+                            self.state = ReconnectState.WAITING_TO_RECONNECT
+                            self._start_reconnect_timer(10)
+                        else:
+                            logger.info(
+                                "{}({}): error on first connection.  Not triggering reconnection".format(
+                                    this.name, op.name
+                                )
+                            )
+                            this._complete_waiting_connect_ops(error)
                     elif type(error) in transient_connect_errors:
                         logger.info(
                             "{}({}): State is {}.  Connect failed with transient error. Triggering reconnect timer".format(
