@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 # Maximum amount of time we wait for ConnectOperation to complete
 WATCHDOG_INTERVAL = 10
 
+report_count= 0
+report_interval = 1000
 
 class MQTTTransportStage(PipelineStage):
     """
@@ -46,13 +48,16 @@ class MQTTTransportStage(PipelineStage):
         self.latency_reports = measurement.ReportGroup(
             "latency",
             reports=[
-                measurement.ReportAverage("publish latency"),
-                measurement.ReportMax("publish latency"),
+                measurement.ReportAverage("PAHOPROFILE publish latency"),
+                measurement.ReportMax("PAHOPROFILE publish latency"),
                 measurement.ReportCount(
-                    "publish latency > 1s", log_event=True, test_function=lambda x: x >= 1
+                    "PAHOPROFILE latency > .25s", log_event=True, test_function=lambda x: x >= 0.25
                 ),
                 measurement.ReportCount(
-                    "publish latency > 5s", log_event=True, test_function=lambda x: x >= 5
+                    "PAHOPROFILE latency > 1s", log_event=True, test_function=lambda x: x >= 1
+                ),
+                measurement.ReportCount(
+                    "PAHOPROFILE latency > 5s", log_event=True, test_function=lambda x: x >= 5
                 ),
             ],
         )
@@ -234,7 +239,15 @@ class MQTTTransportStage(PipelineStage):
                     self.transport.publish(
                         topic=op.topic, payload=op.payload, callback=on_published
                     )
+                logger.info("pub = {} sec".format(latency.get_latency()))
                 self.latency_reports.add_sample(latency.get_latency())
+                global report_count
+                global report_interval
+                report_count += 1
+                if report_count >= report_interval:
+                    report_count = 0
+                    logger.info("".center(132, "*"))
+                    self.latency_reports.print_report()
 
             except transport_exceptions.ConnectionDroppedError:
                 self.send_event_up(pipeline_events_base.DisconnectedEvent())

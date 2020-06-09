@@ -23,8 +23,8 @@ class ReportGroup(object):
 
     def print_report(self):
         with self.lock:
-            logger.debug("{} reports:".format(self.name))
-            logger.debug("-----------")
+            logger.info("{} reports:".format(self.name))
+            logger.info("-----------")
             for report in self.reports:
                 report.print_report()
 
@@ -47,7 +47,7 @@ class ReportAverage(object):
 
     def print_report(self):
         with self.lock:
-            logger.debug("{} average: {}".format(self.name, self.total / self.sample_count))
+            logger.info("{} average: {}".format(self.name, self.total / self.sample_count))
 
 
 class ReportCount(object):
@@ -63,7 +63,7 @@ class ReportCount(object):
             if self.test_function(sample):
                 self.count += 1
                 if self.log_event:
-                    logger.debug("{} count + 1 = {}", self.name, self.count)
+                    logger.info("{} count + 1 = {}", self.name, self.count)
 
     def get_count(self):
         with self.lock:
@@ -71,7 +71,7 @@ class ReportCount(object):
 
     def print_report(self):
         with self.lock:
-            logger.debug("{} count: {}".format(self.name, self.count))
+            logger.info("{} count: {}".format(self.name, self.count))
 
 
 class ReportMax(object):
@@ -91,7 +91,7 @@ class ReportMax(object):
 
     def print_report(self):
         with self.lock:
-            logger.debug("{} max: {}".format(self.name, self.max))
+            logger.info("{} max: {}".format(self.name, self.max))
 
 
 class MeasureActiveObjects(contextlib.AbstractContextManager):
