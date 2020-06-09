@@ -17,6 +17,7 @@ from . import (
     pipeline_thread,
     pipeline_exceptions,
     pipeline_events_base,
+    measurement,
 )
 from azure.iot.device.common.mqtt_transport import MQTTTransport
 from azure.iot.device.common import handle_exceptions, transport_exceptions
@@ -42,6 +43,19 @@ class MQTTTransportStage(PipelineStage):
         self.transport = None
 
         self._pending_connection_op = None
+        self.latency_reports = measurement.ReportGroup(
+            "latency",
+            reports=[
+                measurement.ReportAverage("publish latency"),
+                measurement.ReportMax("publish latency"),
+                measurement.ReportCount(
+                    "publish latency > 1s", log_event=True, test_function=lambda x: x >= 1
+                ),
+                measurement.ReportCount(
+                    "publish latency > 5s", log_event=True, test_function=lambda x: x >= 5
+                ),
+            ],
+        )
 
     @pipeline_thread.runs_on_pipeline_thread
     def _cancel_pending_connection_op(self, error=None):
@@ -215,7 +229,13 @@ class MQTTTransportStage(PipelineStage):
                 op.complete()
 
             try:
-                self.transport.publish(topic=op.topic, payload=op.payload, callback=on_published)
+                latency = measurement.MeasureLatency()
+                with latency:
+                    self.transport.publish(
+                        topic=op.topic, payload=op.payload, callback=on_published
+                    )
+                self.latency_reports.add_sample(latency.get_latency())
+
             except transport_exceptions.ConnectionDroppedError:
                 self.send_event_up(pipeline_events_base.DisconnectedEvent())
                 raise
