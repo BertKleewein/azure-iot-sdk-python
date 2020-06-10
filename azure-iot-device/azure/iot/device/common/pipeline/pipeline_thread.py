@@ -104,8 +104,11 @@ def _invoke_on_executor_thread(func, thread_name, block=True):
         function_has_name = False
 
     def wrapper(*args, **kwargs):
-        if threading.current_thread().name is not thread_name:
-            logger.debug("Starting {} in {} thread".format(function_name, thread_name))
+        if not block or threading.current_thread().name is not thread_name:
+            if block:
+                logger.debug("Starting {} in {} thread".format(function_name, thread_name))
+            else:
+                logger.debug("queueing {} on {} thread".format(function_name, thread_name))
 
             def thread_proc():
                 threading.current_thread().name = thread_name
@@ -212,3 +215,17 @@ def runs_on_http_thread(func):
     Decorator which marks a function as only running inside the http thread.
     """
     return _assert_executor_thread(func=func, thread_name="azure_iot_http")
+
+
+def invoke_on_paho_thrad(func):
+    """
+    Run the decorated function on the pipeline thread.
+    """
+    return _invoke_on_executor_thread(func=func, thread_name="paho")
+
+
+def invoke_on_paho_thread_nowait(func):
+    """
+    Run the decorated function on the pipeline thread, but don't wait for it to complete
+    """
+    return _invoke_on_executor_thread(func=func, thread_name="paho", block=False)

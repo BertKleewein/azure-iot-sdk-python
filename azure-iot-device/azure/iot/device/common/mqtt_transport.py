@@ -14,6 +14,7 @@ import weakref
 import socket
 from . import transport_exceptions as exceptions
 import socks
+from azure.iot.device.common.pipeline.pipeline_thread import invoke_on_paho_thread_nowait
 
 logger = logging.getLogger(__name__)
 
@@ -458,6 +459,7 @@ class MQTTTransport(object):
             err = _create_error_from_rc_code(rc)
             raise err
 
+    @invoke_on_paho_thread_nowait
     def subscribe(self, topic, qos=1, callback=None):
         """
         This method subscribes the client to one topic from the MQTT broker.
@@ -488,6 +490,7 @@ class MQTTTransport(object):
             raise _create_error_from_rc_code(rc)
         self._op_manager.establish_operation(mid, callback)
 
+    @invoke_on_paho_thread_nowait
     def unsubscribe(self, topic, callback=None):
         """
         Unsubscribe the client from one topic on the MQTT broker.
@@ -514,6 +517,7 @@ class MQTTTransport(object):
             raise _create_error_from_rc_code(rc)
         self._op_manager.establish_operation(mid, callback)
 
+    @invoke_on_paho_thread_nowait
     def publish(self, topic, payload, qos=1, callback=None):
         """
         Send a message via the MQTT broker.

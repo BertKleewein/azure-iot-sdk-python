@@ -83,7 +83,7 @@ class PipelineStage(object):
         self.previous = None
         self.pipeline_root = None
 
-    @pipeline_thread.runs_on_pipeline_thread
+    @pipeline_thread.invoke_on_pipeline_thread_nowait
     def run_op(self, op):
         """
         Run the given operation.  This is the public function that outside callers would call to run an
