@@ -6,7 +6,7 @@
 
 import paho.mqtt.client as mqtt
 import logging
-import ssl
+from OpenSSL import SSL as openssl
 import sys
 import threading
 import traceback
@@ -14,6 +14,9 @@ import weakref
 import socket
 from . import transport_exceptions as exceptions
 import socks
+import time
+import select
+import ssl as python_ssl
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,94 @@ paho_rc_to_error = {
     mqtt.MQTT_ERR_ERRNO: exceptions.ProtocolClientError,
     mqtt.MQTT_ERR_QUEUE_SIZE: exceptions.ProtocolClientError,
 }
+
+
+def run_with_select(socket, func, *args, **kwargs):
+    timeout = socket.gettimeout()
+    print("timeout={}".format(timeout))
+    if timeout is not None:
+        start = time.time()
+    while True:
+        try:
+            return func(*args, **kwargs)
+        except (openssl.WantReadError, openssl.WantWriteError):
+            if timeout is None or time.time() > start + timeout:
+                raise
+            result = select.select([socket], [socket], [], timeout - (time.time() - start))
+            if result == [[], [], []]:
+                raise TimeoutError()
+
+
+class SSLSocketWrapper(object):
+    def __init__(self, connection):
+        self.connection = connection
+        self.connection.set_connect_state()
+        self.timeout = None
+
+    def do_handshake(self):
+        return run_with_select(self.connection, self.connection.do_handshake)
+
+    def settimeout(self, timeout):
+        self.timeout = timeout
+
+    def setblocking(self, f):
+        # TODO
+        pass
+
+    def fileno(self):
+        return self.connection.fileno()
+
+    def send(self, buffer, flags=None):
+        try:
+            print("send")
+            return self.connection.send(buffer, flags)
+        except openssl.WantReadError:
+            raise socket.error(python_ssl.SSL_ERROR_WANT_READ, "opensslWantReadError")
+        except openssl.WantWriteError:
+            raise socket.error(python_ssl.SSL_ERROR_WANT_WRITE, "opensslWantWriteError")
+
+    def recv(self, bufsize, flags=None):
+        try:
+            print("recv")
+            return self.connection.recv(bufsize, flags)
+        except openssl.WantReadError:
+            raise socket.error(python_ssl.SSL_ERROR_WANT_READ, "opensslWantReadError")
+        except openssl.WantWriteError:
+            raise socket.error(python_ssl.SSL_ERROR_WANT_WRITE, "opensslWantWriteError")
+        except Exception as e:
+            print("*************8transport exception: {},{}".format(type(e), str(e)))
+            raise
+
+
+class SSLContextWrapper(object):
+    def __init__(self, protocol):
+        assert protocol == OpenSSLWrapper.PROTOCOL_TLSv1_2
+        self.context = openssl.Context(protocol)
+
+    def load_default_certs(self):
+        # TODO
+        pass
+
+    def wrap_socket(self, sock, server_hostname, do_handshake_on_connect):
+        self.connection = openssl.Connection(self.context, sock)
+        return SSLSocketWrapper(self.connection)
+
+
+class OpenSSLWrapper(object):
+    PROTOCOL_TLSv1_2 = openssl.TLSv1_2_METHOD
+    CERT_REQUIRED = 1
+    SSL_ERROR_WANT_READ = python_ssl.SSL_ERROR_WANT_READ
+    SSL_ERROR_WANT_WRITE = python_ssl.SSL_ERROR_WANT_WRITE
+
+    class CertificateError(Exception):
+        pass
+
+    def SSLContext(self, protocol):
+        return SSLContextWrapper(protocol)
+
+
+ssl = OpenSSLWrapper()
+mqtt.ssl = ssl
 
 
 def _create_error_from_connack_rc_code(rc):
