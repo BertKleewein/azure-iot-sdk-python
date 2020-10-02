@@ -7,7 +7,15 @@
 import os
 import time
 import uuid
+import logging
+import patch_mbedtls
 from azure.iot.device import IoTHubDeviceClient, Message
+
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger("paho").setLevel(logging.DEBUG)
+logging.getLogger("patch_mbedtls").setLevel(logging.INFO)
+
+patch_mbedtls.monkeypatch()
 
 # The connection string for a device should never be stored in code. For the sake of simplicity we're using an environment variable here.
 conn_str = os.getenv("IOTHUB_DEVICE_CONNECTION_STRING")
