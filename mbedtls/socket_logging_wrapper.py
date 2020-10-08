@@ -62,27 +62,23 @@ class SocketLoggingWrapper(object):
         return self._socket.makefile(*args, **kwargs)
 
     def recv(self, bufsize, flags=0):
-        print("{}: calling recv {} bytes".format(self.name, bufsize))
+        # print("{}: calling recv {} bytes".format(self.name, bufsize))
         try:
             ret = self._socket.recv(bufsize, flags)
-            print(
-                "{}: recv {} bytes returned {} bytes: {}".format(
-                    self.name, bufsize, len(ret), ret.hex()
-                )
-            )
+            # print( "{}: recv {} bytes returned {} bytes: {}".format( self.name, bufsize, len(ret), ret.hex()))
             return ret
-        except Exception as e:
-            print("{}: recv {} bytes raised {}".format(self.name, bufsize, e))
+        except Exception:
+            # print("{}: recv {} bytes raised {}".format(self.name, bufsize, e))
             raise
 
     def recv_into(self, buffer, nbytes=None, flags=0):
-        print("{}: calling recv_into {} bytes".format(self.name, nbytes))
+        # print("{}: calling recv_into {} bytes".format(self.name, nbytes))
         try:
             ret = self._socket.recv_info(buffer, nbytes, flags)
-            print("{}: recv_info {} bytes returned {} bytes".format(self.name, nbytes, ret))
+            # print("{}: recv_info {} bytes returned {} bytes".format(self.name, nbytes, ret))
             return ret
-        except Exception as e:
-            print("{}: recv_into {} bytes raised {}".format(self.name, nbytes, e))
+        except Exception:
+            # print("{}: recv_into {} bytes raised {}".format(self.name, nbytes, e))
             raise
 
     def recvfrom(self, bufsize, flags=0):
@@ -92,13 +88,13 @@ class SocketLoggingWrapper(object):
         return self._socket.recvfrom_into(buffer, nbytes, flags)
 
     def send(self, message, flags=0):
-        print("{}: send {} bytes".format(self.name, len(message)))
+        # print("{}: send {} bytes".format(self.name, len(message)))
         try:
             ret = self._socket.send(message, flags)
-            print("{}: send {} bytes returned {}".format(self.name, len(message), ret))
+            # print("{}: send {} bytes returned {}".format(self.name, len(message), ret))
             return ret
-        except Exception as e:
-            print("{}: send {} bytes raised {}".format(self.name, len(message), e))
+        except Exception:
+            # print("{}: send {} bytes raised {}".format(self.name, len(message), e))
             raise
 
     def sendall(self, message, flags=0):

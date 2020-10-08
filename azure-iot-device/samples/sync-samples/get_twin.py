@@ -6,7 +6,14 @@
 
 import os
 from azure.iot.device import IoTHubDeviceClient
+import patch_mbedtls
+import logging
 
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger("paho").setLevel(logging.DEBUG)
+logging.getLogger("patch_mbedtls").setLevel(logging.INFO)
+
+patch_mbedtls.monkeypatch()
 
 conn_str = os.getenv("IOTHUB_DEVICE_CONNECTION_STRING")
 device_client = IoTHubDeviceClient.create_from_connection_string(conn_str)

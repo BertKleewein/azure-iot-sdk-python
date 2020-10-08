@@ -26,6 +26,8 @@ if platform.system() == "Windows":
 else:
     EAGAIN = errno.EAGAIN
 
+BYTES_PER_REQUEST = 16384
+
 
 def monkeypatch():
     logger.info("Patching paho and azure.iot.device  to use mbed_tls")
@@ -36,15 +38,12 @@ def monkeypatch():
 
 def run_with_select(mbed_socket, func, *args, **kwargs):
     timeout = mbed_socket.gettimeout()
-    print("timeout={}".format(timeout))
     if timeout is not None:
         start = time.time()
     while True:
         try:
-            print("calling")
             return func(*args, **kwargs)
         except (mbed_ssl.WantReadError, mbed_ssl.WantWriteError):
-            print("exc")
             if timeout is None or time.time() > start + timeout:
                 raise
             result = select.select(
@@ -58,9 +57,9 @@ class SSLSocketWrapper(object):
     def __init__(self, mbed_socket):
         self.mbed_socket = mbed_socket
         self.timeout = None
+        self.buffer = None
 
     def do_handshake(self):
-        print("do_handshake")
         return run_with_select(mbed_socket=self.mbed_socket, func=self.mbed_socket.do_handshake)
 
     def settimeout(self, timeout):
@@ -75,7 +74,6 @@ class SSLSocketWrapper(object):
 
     def send(self, buffer, flags=None):
         try:
-            print("send buffer_size = {}".format(len(buffer)))
             return self.mbed_socket.send(buffer, flags or 0)
         except mbed_ssl.WantReadError:
             raise socket.error(default_ssl.SSL_ERROR_WANT_READ, "WantReadError")
@@ -83,19 +81,37 @@ class SSLSocketWrapper(object):
             raise socket.error(default_ssl.SSL_ERROR_WANT_WRITE, "WantWriteError")
 
     def recv(self, bufsize, flags=None):
-        try:
-            ret = self.mbed_socket.recv(bufsize, flags or 0)
-            print("wrapper: returning {}".format(ret.hex()))
+        if not self.buffer:
+            try:
+                print("Asking for {} bytes".format(BYTES_PER_REQUEST))
+                self.buffer = self.mbed_socket.recv(BYTES_PER_REQUEST, flags or 0)
+                print("Got {} bytes".format(len(self.buffer)))
+            except mbed_ssl.WantReadError:
+                raise socket.error(default_ssl.SSL_ERROR_WANT_READ, "WantReadError")
+            except mbed_ssl.WantWriteError:
+                raise socket.error(default_ssl.SSL_ERROR_WANT_WRITE, "WantWriteError")
+            except mbed_ssl.RaggedEOF:
+                raise socket.error(EAGAIN, "RaggedEOF")
+            except Exception as e:
+                print("*************8transport exception: {},{}".format(type(e), str(e)))
+        if not self.buffer:
+            return b""
+        else:
+            size = min(len(self.buffer), bufsize)
+            old_buffer = self.buffer
+            self.buffer = old_buffer[size:]
+            ret = old_buffer[0:size]
+            print(
+                "asked for {}, had {}, returned {}, remaining {}".format(
+                    bufsize, len(old_buffer), size, len(self.buffer)
+                )
+            )
+            print("{}".format(ret))
             return ret
-        except mbed_ssl.WantReadError:
-            raise socket.error(default_ssl.SSL_ERROR_WANT_READ, "WantReadError")
-        except mbed_ssl.WantWriteError:
-            raise socket.error(default_ssl.SSL_ERROR_WANT_WRITE, "WantWriteError")
-        except mbed_ssl.RaggedEOF:
-            raise socket.error(EAGAIN, "RaggedEOF")
-        except Exception as e:
-            print("*************8transport exception: {},{}".format(type(e), str(e)))
             raise
+
+    def close(self):
+        return self.mbed_socket.close()
 
 
 class SSLContextWrapper(object):
@@ -113,7 +129,7 @@ class SSLContextWrapper(object):
             trust_store=trust_store,
             validate_certificates=False,
         )
-        mbed_ssl._enable_debug_output(config)
+        # mbed_ssl._enable_debug_output(config)
         self.context = mbed_ssl.ClientContext(config)
 
     def load_default_certs(self):
